@@ -5,7 +5,11 @@ from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 import os
 
+first_row = 3
+first_col = 2
 
+
+# noinspection DuplicatedCode
 class Application(tk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
@@ -23,6 +27,7 @@ class Application(tk.Frame):
         # Window frames init -------------------------------------------------------------------------------------------
         self.file_frame = tk.Frame(self.master, relief="sunken", bg="grey")
         self.main_frame = tk.Frame(self.master)
+        self.exit_frame = tk.Frame(self.master)
 
         # Variable strings init ----------------------------------------------------------------------------------------
         self.in_file_text = tk.StringVar()
@@ -30,14 +35,17 @@ class Application(tk.Frame):
         self.progress_text = tk.StringVar()
 
         # Label init ---------------------------------------------------------------------------------------------------
-        self.tip_label_in = tk.Label(self.file_frame,   text="Input file:   ",            bg="grey")
-        self.tip_label_out = tk.Label(self.file_frame,  text="Output file:  ",            bg="grey")
-        self.in_file_label = tk.Label(self.file_frame,  textvariable=self.in_file_text,   bg="grey")
-        self.out_file_label = tk.Label(self.file_frame, textvariable=self.out_file_text,  bg="grey")
-        self.fl_label = tk.Label(self.main_frame,       text="     Φ,Λ     ")
-        self.hatt_label = tk.Label(self.main_frame,     text="        hatt        ")
-        self.egsa_label = tk.Label(self.main_frame,     text="     egsa     ")
-        self.progress_label = tk.Label(self.main_frame, textvariable=self.progress_text,  fg="green", padx=10, pady=10)
+        self.file_title_label = tk.Label(self.main_frame,   text="Use these files:",          bg="grey"                )
+        self.tip_label_in = tk.Label(self.file_frame,       text="Input file:   ",            bg="grey"                )
+        self.tip_label_out = tk.Label(self.file_frame,      text="Output file:  ",            bg="grey"                )
+        self.in_file_label = tk.Label(self.file_frame,      textvariable=self.in_file_text,   bg="grey"                )
+        self.out_file_label = tk.Label(self.file_frame,     textvariable=self.out_file_text,  bg="grey"                )
+        self.web_title_label = tk.Label(self.main_frame,    text="Using WEB Browser:"                                  )
+        self.fl_label = tk.Label(self.main_frame,           text="     Φ,Λ     "                                       )
+        self.hatt_label = tk.Label(self.main_frame,         text="        hatt        "                                )
+        self.egsa_label = tk.Label(self.main_frame,         text="     egsa     "                                      )
+        self.progress_label = tk.Label(self.main_frame, textvariable=self.progress_text,  fg="green", padx=10, pady=10 )
+        self.ofl_title_label = tk.Label(self.main_frame,    text="Offline:"                                            )
 
         # Button init --------------------------------------------------------------------------------------------------
         self.select_file_in_button = tk.Button(self.file_frame,     bg="grey")
@@ -46,7 +54,7 @@ class Application(tk.Frame):
         self.open_file_out_button = tk.Button(self.file_frame,      bg="grey")
         self.fl_to_hatt_button = tk.Button(self.main_frame)
         self.hatt_to_egsa_button = tk.Button(self.main_frame)
-        self.quit_button = tk.Button(self.main_frame, text="QUIT",  fg="red")
+        self.quit_button = tk.Button(self.exit_frame, text="QUIT",  fg="red")
         self.place_widgets()
 
     def _destroy(self):
@@ -82,32 +90,35 @@ class Application(tk.Frame):
 
         self.open_file_out_button["text"] = "Open output file."
         self.open_file_out_button["command"] = self.open_file_out_pros
-        self.open_file_out_button.grid(                                 column=3, row=1,            padx=10, pady=5    )
+        self.open_file_out_button.grid(                                 column=3, row=1,            padx=5, pady=5    )
 
         self.file_frame.grid(                                                     row=0,            padx=10, pady=10   )
 
         # Main widgets -------------------------------------------------------------------------------------------------
-        self.fl_label.grid(                                             column=0, row=0                                )
+        self.web_title_label.grid(                                      column=2, row=0, padx=5, pady=5                )
+        self.fl_label.grid(                                             column=0, row=1                                )
 
         self.fl_to_hatt_button["text"] = "     -->     "
         self.fl_to_hatt_button["command"] = self.start_fl_to_hatt
-        self.fl_to_hatt_button.grid(                                    column=1, row=0                                )
+        self.fl_to_hatt_button.grid(                                    column=1, row=1                                )
 
-        self.hatt_label.grid(                                           column=2, row=0                                )
+        self.hatt_label.grid(                                           column=2, row=1                                )
 
         self.hatt_to_egsa_button["text"] = "     -->     "
         self.hatt_to_egsa_button["command"] = self.start_hatt_to_egsa
-        self.hatt_to_egsa_button.grid(                                  column=3, row=0                                )
+        self.hatt_to_egsa_button.grid(                                  column=3, row=1                                )
 
-        self.egsa_label.grid(                                           column=4, row=0                                )
+        self.egsa_label.grid(                                           column=4, row=1                                )
 
         self.progress_text.set(" ")
-        self.progress_label.grid(                                       column=2, row=1                                )
-
-        self.quit_button["command"] = self._destroy
-        self.quit_button.grid(                                          column=2, row=2                                )
+        self.progress_label.grid(                                       column=2, row=2                                )
 
         self.main_frame.grid(                                                     row=1,            padx=10, pady=10   )
+
+        self.quit_button["command"] = self._destroy
+        self.quit_button.grid(                                          column=2, row=0                                )
+
+        self.exit_frame.grid(                                                     row=2,            padx=10, pady=10   )
 
     def change_file_in(self):
         self.in_filename = askopenfilename()
@@ -189,7 +200,10 @@ class Application(tk.Frame):
 
         for sheet_name in workbook.sheetnames:
             sheet = workbook[sheet_name]
-            for i, row in enumerate(sheet.iter_rows(min_row=3, min_col=2, max_col=7, values_only=True)):
+            for i, row in enumerate(sheet.iter_rows(min_row=first_row,
+                                                    min_col=first_col,
+                                                    max_col=first_col + 5,
+                                                    values_only=True)):
 
                 res = self.fl_to_hatt(self.driver, row)
 
@@ -209,7 +223,10 @@ class Application(tk.Frame):
 
         for sheet_name in workbook.sheetnames:
             sheet = workbook[sheet_name]
-            for i, row in enumerate(sheet.iter_rows(min_row=3, min_col=8, max_col=9, values_only=True)):
+            for i, row in enumerate(sheet.iter_rows(min_row=first_row,
+                                                    min_col=first_col + 6,
+                                                    max_col=first_col + 7,
+                                                    values_only=True)):
 
                 res = self.hatt_to_egsa(self.driver, row)
 
@@ -218,6 +235,12 @@ class Application(tk.Frame):
 
         workbook.save(self.out_filename)
         self.progress_text.set("Finished!")
+
+    def offline_fl_to_hatt(self):
+        pass
+
+    def offline_hatt_to_esga(self):
+        pass
 
 
 root = tk.Tk()
