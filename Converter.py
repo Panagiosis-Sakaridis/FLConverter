@@ -1,12 +1,14 @@
-from openpyxl import load_workbook
+import os
 import tkinter as tk
-from tkinter.filedialog import askopenfilename
+from tkinter import filedialog
+
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-import os
+from openpyxl import load_workbook
+from openpyxl import Workbook
 
-first_row = 3
-first_col = 2
+script_path = os.path.realpath(__file__)
+script_path = script_path[0:script_path.rindex('\\')]
 
 
 # noinspection DuplicatedCode
@@ -16,8 +18,12 @@ class Application(tk.Frame):
 
         # Global variables init ----------------------------------------------------------------------------------------
         self.in_filename = "coordinates.xlsx"
-        self.out_filename = "coordinates.xlsx"
-        self.driver = webdriver.Firefox(executable_path=r'geckodriver.exe')
+        self.out_filename = "coordinates_out.xlsx"
+        self.driver_state = "stopped"
+        self.driver = type(webdriver.firefox)
+
+        self.first_row = 2
+        self.first_col = 2
 
         # Window init --------------------------------------------------------------------------------------------------
         self.master = master
@@ -40,6 +46,8 @@ class Application(tk.Frame):
         self.tip_label_out = tk.Label(self.file_frame,      text="Output file:  ",            bg="grey"                )
         self.in_file_label = tk.Label(self.file_frame,      textvariable=self.in_file_text,   bg="grey"                )
         self.out_file_label = tk.Label(self.file_frame,     textvariable=self.out_file_text,  bg="grey"                )
+        self.select_col_label = tk.Label(self.file_frame,   text="First cell: Col: ",         bg="grey"                )
+        self.select_row_label = tk.Label(self.file_frame,   text="               Row: ",      bg="grey"                )
         self.web_title_label = tk.Label(self.main_frame,    text="Using WEB Browser:"                                  )
         self.fl_label = tk.Label(self.main_frame,           text="     Φ,Λ     "                                       )
         self.hatt_label = tk.Label(self.main_frame,         text="        hatt        "                                )
@@ -55,14 +63,25 @@ class Application(tk.Frame):
         self.fl_to_hatt_button = tk.Button(self.main_frame)
         self.hatt_to_egsa_button = tk.Button(self.main_frame)
         self.quit_button = tk.Button(self.exit_frame, text="QUIT",  fg="red")
+
+        # Entries init -------------------------------------------------------------------------------------------------
+        self.row_entry = tk.Entry(self.file_frame)
+        self.row_entry.insert(0, str(self.first_row))
+        self.col_entry = tk.Entry(self.file_frame)
+        self.col_entry.insert(0, str(self.first_col))
+
         self.place_widgets()
 
     def _destroy(self):
-        self.driver.quit()
+        if self.driver_state == "running":
+            self.driver.quit()
         try:
             os.remove("geckodriver.log")
         except PermissionError:
             print("Exception raised: PermissionError. File: geckodriver.log")
+        except FileNotFoundError:
+            print("Exception raised: FileNotFoundError. File: geckodriver.log")
+
         self.master.destroy()
 
     def place_widgets(self):
@@ -90,7 +109,11 @@ class Application(tk.Frame):
 
         self.open_file_out_button["text"] = "Open output file."
         self.open_file_out_button["command"] = self.open_file_out_pros
-        self.open_file_out_button.grid(                                 column=3, row=1,            padx=5, pady=5    )
+        self.open_file_out_button.grid(                                 column=3, row=1,            padx=5, pady=5     )
+        self.select_col_label.grid(                                     column=0, row=2,                               )
+        self.col_entry.grid(                                            column=1, row=2                                )
+        self.select_row_label.grid(                                     column=0, row=3,                               )
+        self.row_entry.grid(                                            column=1, row=3                                )
 
         self.file_frame.grid(                                                     row=0,            padx=10, pady=10   )
 
@@ -121,12 +144,17 @@ class Application(tk.Frame):
         self.exit_frame.grid(                                                     row=2,            padx=10, pady=10   )
 
     def change_file_in(self):
-        self.in_filename = askopenfilename()
-        self.in_file_text.set("Input File is:    " + self.in_filename)
+        in_filename = filedialog.askopenfilename(initialdir=script_path, title="Select file to use ai Input")
+        if os.path.exists(in_filename):
+            self.in_filename = in_filename
+            self.in_file_text.set(self.in_filename)
 
     def change_file_out(self):
-        self.out_filename = askopenfilename()
-        self.out_file_text.set("Output File is: " + self.out_filename)
+
+        out_filename = filedialog.asksaveasfilename(initialdir=script_path, title="Select file")
+        if out_filename is not "":
+            self.out_filename = out_filename
+            self.out_file_text.set(self.out_filename)
 
     def open_file_in_pros(self):
         os.startfile(self.in_filename)
@@ -190,50 +218,90 @@ class Application(tk.Frame):
 
         return egsa_x, egsa_y
 
-    def start_fl_to_hatt(self):
+    def start_driver(self):
+        if self.driver_state == "stopped":
+            self.driver = webdriver.Firefox(executable_path=r'geckodriver.exe')
+            self.driver.minimize_window()
+            print(self.driver.capabilities)
+            self.driver_state = "running"
+
+    def update_values(self):
+        self.first_col = int(self.col_entry.get())
+        self.first_row = int(self.row_entry.get())
         self.progress_text.set("Working...")
         self.update()
+
+    def start_fl_to_hatt(self):
+        self.change_file_in()
+        self.update_values()
+        self.start_driver()
         workbook = load_workbook(filename=self.in_filename)
+        end_book = Workbook()
+        first_sheet = end_book.active
 
         url = "http://www.calcfun.com/calc-67-metatropi-syntetagmenon-apo-moires-lepta-deyterolepta-se-dekadikes.html"
         self.driver.get(url)
 
         for sheet_name in workbook.sheetnames:
             sheet = workbook[sheet_name]
-            for i, row in enumerate(sheet.iter_rows(min_row=first_row,
-                                                    min_col=first_col,
-                                                    max_col=first_col + 5,
+
+            end_book.create_sheet(sheet_name)
+            out_sheet = end_book[sheet_name]
+
+            out_sheet.cell(row=1, column=1).value = "id"
+            out_sheet.cell(row=1, column=2).value = "x"
+            out_sheet.cell(row=1, column=3).value = "y"
+
+            for i, row in enumerate(sheet.iter_rows(min_row=self.first_row,
+                                                    min_col=self.first_col,
+                                                    max_col=self.first_col + 5,
                                                     values_only=True)):
 
                 res = self.fl_to_hatt(self.driver, row)
+                out_sheet.cell(row=i + 2, column=1).value = i+1
+                out_sheet.cell(row=i + 2, column=2).value = float(res[0])
+                out_sheet.cell(row=i + 2, column=3).value = float(res[1])
 
-                sheet.cell(row=i + 3, column=8).value = res[0]
-                sheet.cell(row=i + 3, column=9).value = res[1]
-
-        workbook.save(self.out_filename)
+        end_book.remove_sheet(first_sheet)
+        self.change_file_out()
+        end_book.save(self.out_filename)
         self.progress_text.set("Finished!")
 
     def start_hatt_to_egsa(self):
-        self.progress_text.set("Working...")
-        self.update()
+        self.change_file_in()
+        self.update_values()
+        self.start_driver()
         workbook = load_workbook(filename=self.in_filename)
+        end_book = Workbook()
+        first_sheet = end_book.active
 
         url = "http://www.calcfun.com/calc-75-metatropi-syntetagmenon-apo-wgs84-se-egsa-87.html"
         self.driver.get(url)
 
         for sheet_name in workbook.sheetnames:
             sheet = workbook[sheet_name]
-            for i, row in enumerate(sheet.iter_rows(min_row=first_row,
-                                                    min_col=first_col + 6,
-                                                    max_col=first_col + 7,
+
+            end_book.create_sheet(sheet_name)
+            out_sheet = end_book[sheet_name]
+
+            out_sheet.cell(row=1, column=1).value = "id"
+            out_sheet.cell(row=1, column=2).value = "x"
+            out_sheet.cell(row=1, column=3).value = "y"
+
+            for i, row in enumerate(sheet.iter_rows(min_row=self.first_row,
+                                                    min_col=self.first_col,
+                                                    max_col=self.first_col + 1,
                                                     values_only=True)):
 
                 res = self.hatt_to_egsa(self.driver, row)
 
-                sheet.cell(row=i + 3, column=10).value = res[0]
-                sheet.cell(row=i + 3, column=11).value = res[1]
+                out_sheet.cell(row=i + 2, column=1).value = i+1
+                out_sheet.cell(row=i + 2, column=2).value = float(res[0])
+                out_sheet.cell(row=i + 2, column=3).value = float(res[1])
 
-        workbook.save(self.out_filename)
+        end_book.remove_sheet(first_sheet)
+        self.change_file_out()
+        end_book.save(self.out_filename)
         self.progress_text.set("Finished!")
 
     def offline_fl_to_hatt(self):
