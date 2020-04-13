@@ -21,6 +21,8 @@ class Application(tk.Frame):
         self.out_filename = "coordinates_out.xlsx"
         self.driver_state = "stopped"
         self.driver = type(webdriver.firefox)
+        self.start_driver()
+        self.workingState = 0
 
         self.first_row = 2
         self.first_col = 2
@@ -39,6 +41,8 @@ class Application(tk.Frame):
         self.in_file_text = tk.StringVar()
         self.out_file_text = tk.StringVar()
         self.progress_text = tk.StringVar()
+        self.option = tk.StringVar()
+        self.option.set("web")
 
         # Label init ---------------------------------------------------------------------------------------------------
         self.file_title_label = tk.Label(self.main_frame,   text="Use these files:",          bg="grey"                )
@@ -48,7 +52,7 @@ class Application(tk.Frame):
         self.out_file_label = tk.Label(self.file_frame,     textvariable=self.out_file_text,  bg="grey"                )
         self.select_col_label = tk.Label(self.file_frame,   text="First cell: Col: ",         bg="grey"                )
         self.select_row_label = tk.Label(self.file_frame,   text="               Row: ",      bg="grey"                )
-        self.web_title_label = tk.Label(self.main_frame,    text="Using WEB Browser:"                                  )
+        self.web_title_label = tk.Label(self.main_frame,    text="Convert Using: "                                     )
         self.fl_label = tk.Label(self.main_frame,           text="     Φ,Λ     "                                       )
         self.hatt_label = tk.Label(self.main_frame,         text="        hatt        "                                )
         self.egsa_label = tk.Label(self.main_frame,         text="     egsa     "                                      )
@@ -70,9 +74,13 @@ class Application(tk.Frame):
         self.col_entry = tk.Entry(self.file_frame)
         self.col_entry.insert(0, str(self.first_col))
 
+        # Radio Buttons init -------------------------------------------------------------------------------------------
+        self.web_rb = tk.Radiobutton(self.main_frame, text="Online", value="web", var=self.option)
+        self.no_web_rb = tk.Radiobutton(self.main_frame, text="Offline", value="no_web", var=self.option)
+
         self.place_widgets()
 
-    def _destroy(self):
+    def destroy_self(self):
         if self.driver_state == "running":
             self.driver.quit()
         try:
@@ -105,7 +113,7 @@ class Application(tk.Frame):
 
         self.select_file_out_button["text"] = "Change output file..."
         self.select_file_out_button["command"] = self.change_file_out
-        self.select_file_out_button.grid(                               column=2, row=1,            padx=5             )
+#       self.select_file_out_button.grid(                               column=2, row=1,            padx=5             )
 
         self.open_file_out_button["text"] = "Open output file."
         self.open_file_out_button["command"] = self.open_file_out_pros
@@ -115,10 +123,13 @@ class Application(tk.Frame):
         self.select_row_label.grid(                                     column=0, row=3,                               )
         self.row_entry.grid(                                            column=1, row=3                                )
 
-        self.file_frame.grid(                                                     row=0,            padx=10, pady=10   )
+        self.file_frame.grid(                                                     row=0                                )
 
         # Main widgets -------------------------------------------------------------------------------------------------
-        self.web_title_label.grid(                                      column=2, row=0, padx=5, pady=5                )
+        self.web_title_label.grid(                                      column=0, row=0,                               )
+        self.web_rb.grid(                                               column=2, row=0                                )
+        self.no_web_rb.grid(                                            column=3, row=0,            padx=10, pady=10   )
+
         self.fl_label.grid(                                             column=0, row=1                                )
 
         self.fl_to_hatt_button["text"] = "     -->     "
@@ -138,7 +149,7 @@ class Application(tk.Frame):
 
         self.main_frame.grid(                                                     row=1,            padx=10, pady=10   )
 
-        self.quit_button["command"] = self._destroy
+        self.quit_button["command"] = self.destroy_self
         self.quit_button.grid(                                          column=2, row=0                                )
 
         self.exit_frame.grid(                                                     row=2,            padx=10, pady=10   )
@@ -222,17 +233,69 @@ class Application(tk.Frame):
         if self.driver_state == "stopped":
             self.driver = webdriver.Firefox(executable_path=r'geckodriver.exe')
             self.driver.minimize_window()
-            print(self.driver.capabilities)
             self.driver_state = "running"
 
     def update_values(self):
         self.first_col = int(self.col_entry.get())
         self.first_row = int(self.row_entry.get())
-        self.progress_text.set("Working...")
+        self.workingState = 0
+        self.update_working_state()
+
+    def update_working_state(self):
+        if self.workingState == 0:
+            self.progress_text.set("Working   ")
+            self.workingState = 1
+        elif self.workingState == 1:
+            self.progress_text.set("Working.  ")
+            self.workingState = 2
+        elif self.workingState == 2:
+            self.progress_text.set("Working.. ")
+            self.workingState = 3
+        elif self.workingState == 3:
+            self.progress_text.set("Working...")
+            self.workingState = 1
+
         self.update()
 
     def start_fl_to_hatt(self):
-        self.change_file_in()
+        if self.option.get() == "web":
+            self.online_fl_to_hatt()
+        elif self.option.get() == "no_web":
+            self.offline_fl_to_hatt()
+
+    def offline_fl_to_hatt(self):
+        self.update_values()
+        workbook = load_workbook(filename=self.in_filename)
+        end_book = Workbook()
+        first_sheet = end_book.active
+
+        for sheet_name in workbook.sheetnames:
+            sheet = workbook[sheet_name]
+
+            end_book.create_sheet(sheet_name)
+            out_sheet = end_book[sheet_name]
+
+            out_sheet.cell(row=1, column=1).value = "id"
+            out_sheet.cell(row=1, column=2).value = "x"
+            out_sheet.cell(row=1, column=3).value = "y"
+
+            for i, row in enumerate(sheet.iter_rows(min_row=self.first_row,
+                                                    min_col=self.first_col,
+                                                    max_col=self.first_col + 5,
+                                                    values_only=True)):
+                res_x = row[0] + (row[1]/60) + (row[2]/3600)
+                res_y = row[3] + (row[4]/60) + (row[5]/3600)
+                out_sheet.cell(row=i + 2, column=1).value = i + 1
+                out_sheet.cell(row=i + 2, column=2).value = res_x
+                out_sheet.cell(row=i + 2, column=3).value = res_y
+                self.update_working_state()
+
+        end_book.remove_sheet(first_sheet)
+        self.change_file_out()
+        end_book.save(self.out_filename)
+        self.progress_text.set("Finished!")
+
+    def online_fl_to_hatt(self):
         self.update_values()
         self.start_driver()
         workbook = load_workbook(filename=self.in_filename)
@@ -256,11 +319,11 @@ class Application(tk.Frame):
                                                     min_col=self.first_col,
                                                     max_col=self.first_col + 5,
                                                     values_only=True)):
-
                 res = self.fl_to_hatt(self.driver, row)
-                out_sheet.cell(row=i + 2, column=1).value = i+1
+                out_sheet.cell(row=i + 2, column=1).value = i + 1
                 out_sheet.cell(row=i + 2, column=2).value = float(res[0])
                 out_sheet.cell(row=i + 2, column=3).value = float(res[1])
+                self.update_working_state()
 
         end_book.remove_sheet(first_sheet)
         self.change_file_out()
@@ -268,7 +331,15 @@ class Application(tk.Frame):
         self.progress_text.set("Finished!")
 
     def start_hatt_to_egsa(self):
-        self.change_file_in()
+        if self.option.get() == "web":
+            self.online_hatt_to_esga()
+        elif self.option.get() == "no_web":
+            self.offline_hatt_to_esga()
+
+    def offline_hatt_to_esga(self):
+        print("offline_hatt_to_esga" + self.option.get())
+
+    def online_hatt_to_esga(self):
         self.update_values()
         self.start_driver()
         workbook = load_workbook(filename=self.in_filename)
@@ -292,26 +363,21 @@ class Application(tk.Frame):
                                                     min_col=self.first_col,
                                                     max_col=self.first_col + 1,
                                                     values_only=True)):
-
                 res = self.hatt_to_egsa(self.driver, row)
 
-                out_sheet.cell(row=i + 2, column=1).value = i+1
+                out_sheet.cell(row=i + 2, column=1).value = i + 1
                 out_sheet.cell(row=i + 2, column=2).value = float(res[0])
                 out_sheet.cell(row=i + 2, column=3).value = float(res[1])
+                self.update_working_state()
 
         end_book.remove_sheet(first_sheet)
         self.change_file_out()
         end_book.save(self.out_filename)
         self.progress_text.set("Finished!")
 
-    def offline_fl_to_hatt(self):
-        pass
-
-    def offline_hatt_to_esga(self):
-        pass
-
 
 root = tk.Tk()
-root.protocol("WM_DELETE_WINDOW", root.maxsize)
+# root.protocol("WM_DELETE_WINDOW", root.maxsize)
 app = Application(master=root)
+root.protocol("WM_DELETE_WINDOW", app.destroy_self)
 app.mainloop()
